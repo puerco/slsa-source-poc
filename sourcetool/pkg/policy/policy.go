@@ -159,6 +159,8 @@ func checkLocalDir(ctx context.Context, gh_connection *gh_control.GitHubConnecti
 	return nil
 }
 
+// CreateLocalPolicy computes the maximum SLSA Source level a repository can prove
+// and creates a policy in an existing clone of slsa-source-poc
 func CreateLocalPolicy(ctx context.Context, gh_connection *gh_control.GitHubConnection, pathToClone string) (string, error) {
 	// First make sure they're in the right state...
 	err := checkLocalDir(ctx, gh_connection, pathToClone)
@@ -196,7 +198,7 @@ func CreateLocalPolicy(ctx context.Context, gh_connection *gh_control.GitHubConn
 	}
 
 	p := RepoPolicy{
-		CanonicalRepo: "TODO fill this in",
+		CanonicalRepo: fmt.Sprintf("https://github.com/%s/%s", gh_connection.Owner, gh_connection.Repo),
 		ProtectedBranches: []ProtectedBranch{
 			{
 				Name:                  gh_connection.Branch,
