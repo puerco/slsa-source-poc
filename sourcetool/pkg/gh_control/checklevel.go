@@ -8,7 +8,9 @@ import (
 	"time"
 
 	"github.com/google/go-github/v69/github"
+	v1 "github.com/slsa-framework/slsa-source-poc/sourcetool/pkg/api/v1"
 	"github.com/slsa-framework/slsa-source-poc/sourcetool/pkg/slsa_types"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type actor struct {
@@ -63,7 +65,7 @@ type GhControlStatus struct {
 	ActivityType string
 	// The controls that are enabled according to the GitHub API.
 	// May not include other controls like if we have provenance.
-	Controls slsa_types.Controls
+	Controls v1.Controls
 }
 
 func (ghc *GitHubConnection) ruleMeetsRequiresReview(rule *github.PullRequestBranchRule) bool {
@@ -74,7 +76,7 @@ func (ghc *GitHubConnection) ruleMeetsRequiresReview(rule *github.PullRequestBra
 }
 
 // Computes the continuity control returning nil if it's not enabled.
-func (ghc *GitHubConnection) computeContinuityControl(ctx context.Context, commit string, rules *github.BranchRules, activity *activity) (*slsa_types.Control, error) {
+func (ghc *GitHubConnection) computeContinuityControl(ctx context.Context, commit string, rules *github.BranchRules, activity *activity) (*v1.Control, error) {
 	oldestDeletion, err := ghc.getOldestActiveRule(ctx, rules.Deletion)
 	if err != nil {
 		return nil, err
@@ -101,7 +103,7 @@ func (ghc *GitHubConnection) computeContinuityControl(ctx context.Context, commi
 		return nil, fmt.Errorf("commit %s created before (%v) the rule was enabled (%v), that shouldn't happen", commit, activity.Timestamp, newestRule.UpdatedAt.Time)
 	}
 
-	return &slsa_types.Control{Name: slsa_types.ContinuityEnforced, Since: newestRule.UpdatedAt.Time}, nil
+	return &v1.Control{Name: slsa_types.ContinuityEnforced, Since: timestamppb.New(newestRule.UpdatedAt.Time)}, nil
 }
 
 func enforcesImmutableTags(ruleset *github.RepositoryRuleset) bool {
@@ -116,7 +118,7 @@ func enforcesImmutableTags(ruleset *github.RepositoryRuleset) bool {
 	return false
 }
 
-func (ghc *GitHubConnection) computeImmutableTagsControl(ctx context.Context, commit string, allRulesets []*github.RepositoryRuleset, activity *activity) (*slsa_types.Control, error) {
+func (ghc *GitHubConnection) computeImmutableTagsControl(ctx context.Context, commit string, allRulesets []*github.RepositoryRuleset, activity *activity) (*v1.Control, error) {
 	var validRuleset *github.RepositoryRuleset
 	for _, ruleset := range allRulesets {
 		if *ruleset.Target != github.RulesetTargetTag {
@@ -151,11 +153,11 @@ func (ghc *GitHubConnection) computeImmutableTagsControl(ctx context.Context, co
 		return nil, nil
 	}
 
-	return &slsa_types.Control{Name: slsa_types.ImmutableTags, Since: validRuleset.UpdatedAt.Time}, nil
+	return &v1.Control{Name: slsa_types.ImmutableTags, Since: timestamppb.New(validRuleset.UpdatedAt.Time)}, nil
 }
 
 // Computes the review control returning nil if it's not enabled.
-func (ghc *GitHubConnection) computeReviewControl(ctx context.Context, rules []*github.PullRequestBranchRule) (*slsa_types.Control, error) {
+func (ghc *GitHubConnection) computeReviewControl(ctx context.Context, rules []*github.PullRequestBranchRule) (*v1.Control, error) {
 	var oldestActive *github.RepositoryRuleset
 	for _, rule := range rules {
 		if ghc.ruleMeetsRequiresReview(rule) {
@@ -172,7 +174,7 @@ func (ghc *GitHubConnection) computeReviewControl(ctx context.Context, rules []*
 	}
 
 	if oldestActive != nil {
-		return &slsa_types.Control{Name: slsa_types.ReviewEnforced, Since: oldestActive.UpdatedAt.Time}, nil
+		return &v1.Control{Name: slsa_types.ReviewEnforced, Since: timestamppb.New(oldestActive.UpdatedAt.Time)}, nil
 	}
 
 	return nil, nil
@@ -207,7 +209,7 @@ func (ghc *GitHubConnection) GetControls(ctx context.Context, commit string) (*G
 		CommitPushTime: activity.Timestamp,
 		ActivityType:   activity.ActivityType,
 		ActorLogin:     activity.Actor.Login,
-		Controls:       slsa_types.Controls{}}
+		Controls:       v1.Controls{}}
 
 	branchRules, _, err := ghc.Client.Repositories.GetRulesForBranch(ctx, ghc.Owner, ghc.Repo, ghc.Branch)
 	if err != nil {

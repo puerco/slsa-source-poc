@@ -9,33 +9,18 @@ import (
 	"log"
 	"os"
 	"strings"
-	"time"
 
 	spb "github.com/in-toto/attestation/go/v1"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/structpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
+	v1 "github.com/slsa-framework/slsa-source-poc/sourcetool/pkg/api/v1"
 	"github.com/slsa-framework/slsa-source-poc/sourcetool/pkg/gh_control"
 	"github.com/slsa-framework/slsa-source-poc/sourcetool/pkg/slsa_types"
 )
 
 const SourceProvPredicateType = "https://github.com/slsa-framework/slsa-source-poc/source-provenance/v1-draft"
-
-// The predicate that encodes source provenance data.
-// The git commit this corresponds to is encoded in the surrounding statement.
-type SourceProvenancePred struct {
-	// The commit preceding 'Commit' in the current context.
-	PrevCommit   string    `json:"prev_commit"`
-	RepoUri      string    `json:"repo_uri"`
-	ActivityType string    `json:"activity_type"`
-	Actor        string    `json:"actor"`
-	Branch       string    `json:"branch"`
-	CreatedOn    time.Time `json:"created_on"`
-	// TODO: get the author of the PR (if this was from a PR).
-
-	// The controls enabled at the time this commit was pushed.
-	Controls slsa_types.Controls `json:"controls"`
-}
 
 type ProvenanceAttestor struct {
 	verification_options VerificationOptions
@@ -46,7 +31,7 @@ func NewProvenanceAttestor(gh_connection *gh_control.GitHubConnection, verificat
 	return &ProvenanceAttestor{verification_options: verification_options, gh_connection: gh_connection}
 }
 
-func GetProvPred(statement *spb.Statement) (*SourceProvenancePred, error) {
+func GetProvPred(statement *spb.Statement) (*v1.Predicate, error) {
 	if statement == nil {
 		return nil, errors.New("nil statement")
 	}
@@ -61,10 +46,11 @@ func GetProvPred(statement *spb.Statement) (*SourceProvenancePred, error) {
 		return nil, fmt.Errorf("cannot marshal predicate to JSON: %w", err)
 	}
 
-	var predStruct SourceProvenancePred
+	var predStruct = &v1.Predicate{}
+
 	// Using regular json.Unmarshal because this is just a regular struct.
-	err = json.Unmarshal(predJson, &predStruct)
-	if err != nil {
+	if err := protojson.Unmarshal(predJson, predStruct); err != nil {
+		fmt.Println(string(predJson))
 		return nil, fmt.Errorf("unmarshalling predicate: %w", err)
 	}
 	// It's valid for Controls to be empty if no controls are reported.
@@ -73,10 +59,10 @@ func GetProvPred(statement *spb.Statement) (*SourceProvenancePred, error) {
 	// if len(predStruct.Controls) == 0 {
 	// 	return nil, fmt.Errorf("expected %v to have non-zero properties", predStruct)
 	// }
-	return &predStruct, nil
+	return predStruct, nil
 }
 
-func addPredToStatement(provPred *SourceProvenancePred, commit string) (*spb.Statement, error) {
+func addPredToStatement(provPred *v1.Predicate, commit string) (*spb.Statement, error) {
 	// Using regular json.Marshal because this is just a regular struct and not from a proto.
 	predJson, err := json.Marshal(provPred)
 	if err != nil {
@@ -110,9 +96,9 @@ func (pa ProvenanceAttestor) createCurrentProvenance(ctx context.Context, commit
 		return nil, err
 	}
 
-	curTime := time.Now()
+	curTime := timestamppb.Now()
 
-	var curProvPred SourceProvenancePred
+	var curProvPred v1.Predicate
 	curProvPred.PrevCommit = prevCommit
 	curProvPred.RepoUri = pa.gh_connection.GetRepoUri()
 	curProvPred.Actor = controlStatus.ActorLogin
@@ -122,13 +108,13 @@ func (pa ProvenanceAttestor) createCurrentProvenance(ctx context.Context, commit
 	curProvPred.Controls = controlStatus.Controls
 
 	// At the very least provenance is available starting now. :)
-	curProvPred.Controls.AddControl(&slsa_types.Control{Name: slsa_types.ProvenanceAvailable, Since: curTime})
+	curProvPred.AddControl(&v1.Control{Name: slsa_types.ProvenanceAvailable, Since: curTime})
 
 	return addPredToStatement(&curProvPred, commit)
 }
 
 // Gets provenance for the commit from git notes.
-func (pa ProvenanceAttestor) GetProvenance(ctx context.Context, commit string) (*spb.Statement, *SourceProvenancePred, error) {
+func (pa ProvenanceAttestor) GetProvenance(ctx context.Context, commit string) (*spb.Statement, *v1.Predicate, error) {
 	notes, err := pa.gh_connection.GetNotesForCommit(ctx, commit)
 	if notes == "" {
 		log.Printf("didn't find notes for commit %s", commit)
@@ -144,7 +130,7 @@ func (pa ProvenanceAttestor) GetProvenance(ctx context.Context, commit string) (
 	return pa.getProvFromReader(bundleReader, commit)
 }
 
-func (pa ProvenanceAttestor) getProvFromReader(reader *BundleReader, commit string) (*spb.Statement, *SourceProvenancePred, error) {
+func (pa ProvenanceAttestor) getProvFromReader(reader *BundleReader, commit string) (*spb.Statement, *v1.Predicate, error) {
 	for {
 		stmt, err := reader.ReadStatement(MatchesTypeAndCommit(SourceProvPredicateType, commit))
 		if err != nil {
@@ -177,7 +163,7 @@ func (pa ProvenanceAttestor) getProvFromReader(reader *BundleReader, commit stri
 	return nil, nil, nil
 }
 
-func (pa ProvenanceAttestor) getPrevProvenance(ctx context.Context, prevAttPath, prevCommit string) (*spb.Statement, *SourceProvenancePred, error) {
+func (pa ProvenanceAttestor) getPrevProvenance(ctx context.Context, prevAttPath, prevCommit string) (*spb.Statement, *v1.Predicate, error) {
 	if prevAttPath != "" {
 		f, err := os.Open(prevAttPath)
 		if err != nil {
@@ -219,12 +205,12 @@ func (pa ProvenanceAttestor) CreateSourceProvenance(ctx context.Context, prevAtt
 	// There was prior provenance, so update the Since field for each property
 	// to the oldest encountered.
 	for i, curControl := range curProvPred.Controls {
-		prevControl := prevProvPred.Controls.GetControl(curControl.Name)
+		prevControl := prevProvPred.GetControl(curControl.Name)
 		// No prior version of this control
 		if prevControl == nil {
 			continue
 		}
-		curControl.Since = slsa_types.EarlierTime(curControl.Since, prevControl.Since)
+		curControl.Since = timestamppb.New(slsa_types.EarlierTime(curControl.Since.AsTime(), prevControl.Since.AsTime()))
 		// Update the value.
 		curProvPred.Controls[i] = curControl
 	}

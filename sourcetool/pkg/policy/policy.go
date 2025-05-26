@@ -12,6 +12,7 @@ import (
 
 	spb "github.com/in-toto/attestation/go/v1"
 
+	v1 "github.com/slsa-framework/slsa-source-poc/sourcetool/pkg/api/v1"
 	"github.com/slsa-framework/slsa-source-poc/sourcetool/pkg/attest"
 	"github.com/slsa-framework/slsa-source-poc/sourcetool/pkg/gh_control"
 	"github.com/slsa-framework/slsa-source-poc/sourcetool/pkg/slsa_types"
@@ -225,7 +226,7 @@ func CreateLocalPolicy(ctx context.Context, gh_connection *gh_control.GitHubConn
 
 // Computes the eligible SLSA level, and when they started being eligible for it,
 // if only they had a policy.  Also returns a rationale for why it's eligible for this level.
-func computeEligibleSlsaLevel(controls slsa_types.Controls) (slsa_types.SlsaSourceLevel, string) {
+func computeEligibleSlsaLevel(controls v1.Controls) (slsa_types.SlsaSourceLevel, string) {
 	continuityControl := controls.GetControl(slsa_types.ContinuityEnforced)
 	provControl := controls.GetControl(slsa_types.ProvenanceAvailable)
 
@@ -247,13 +248,13 @@ func computeEligibleSlsaLevel(controls slsa_types.Controls) (slsa_types.SlsaSour
 }
 
 // Computes the time since these controls have been eligible for the level, nil if not eligible.
-func computeEligibleSince(controls slsa_types.Controls, level slsa_types.SlsaSourceLevel) (*time.Time, error) {
+func computeEligibleSince(controls v1.Controls, level slsa_types.SlsaSourceLevel) (*time.Time, error) {
 	continuityControl := controls.GetControl(slsa_types.ContinuityEnforced)
 	provControl := controls.GetControl(slsa_types.ProvenanceAvailable)
 
 	if level == slsa_types.SlsaSourceLevel3 {
 		if continuityControl != nil && provControl != nil {
-			t := slsa_types.LaterTime(continuityControl.Since, provControl.Since)
+			t := slsa_types.LaterTime(continuityControl.Since.AsTime(), provControl.Since.AsTime())
 			return &t, nil
 		}
 		return nil, nil
@@ -261,7 +262,8 @@ func computeEligibleSince(controls slsa_types.Controls, level slsa_types.SlsaSou
 
 	if level == slsa_types.SlsaSourceLevel2 {
 		if continuityControl != nil {
-			return &continuityControl.Since, nil
+			t := continuityControl.Since.AsTime()
+			return &t, nil
 		}
 		return nil, nil
 	}
@@ -275,7 +277,7 @@ func computeEligibleSince(controls slsa_types.Controls, level slsa_types.SlsaSou
 	return nil, fmt.Errorf("unknown level %s", level)
 }
 
-func computeSlsaLevel(branchPolicy *ProtectedBranch, controls slsa_types.Controls) (slsa_types.SlsaSourceLevel, error) {
+func computeSlsaLevel(branchPolicy *ProtectedBranch, controls v1.Controls) (slsa_types.SlsaSourceLevel, error) {
 	eligibleLevel, eligibleWhy := computeEligibleSlsaLevel(controls)
 
 	if !slsa_types.IsLevelHigherOrEqualTo(eligibleLevel, branchPolicy.TargetSlsaSourceLevel) {
@@ -298,7 +300,7 @@ func computeSlsaLevel(branchPolicy *ProtectedBranch, controls slsa_types.Control
 	return branchPolicy.TargetSlsaSourceLevel, nil
 }
 
-func computeReviewEnforced(branchPolicy *ProtectedBranch, controls slsa_types.Controls) (bool, error) {
+func computeReviewEnforced(branchPolicy *ProtectedBranch, controls v1.Controls) (bool, error) {
 	if !branchPolicy.RequireReview {
 		return false, nil
 	}
@@ -308,14 +310,14 @@ func computeReviewEnforced(branchPolicy *ProtectedBranch, controls slsa_types.Co
 		return false, fmt.Errorf("policy requires review, but that control is not enabled")
 	}
 
-	if branchPolicy.Since.Before(reviewControl.Since) {
+	if branchPolicy.Since.Before(reviewControl.Since.AsTime()) {
 		return false, fmt.Errorf("policy requires review since %v, but that control has only been enabled since %v", branchPolicy.Since, reviewControl.Since)
 	}
 
 	return true, nil
 }
 
-func computeImmutableTags(branchPolicy *ProtectedBranch, controls slsa_types.Controls) (bool, error) {
+func computeImmutableTags(branchPolicy *ProtectedBranch, controls v1.Controls) (bool, error) {
 	if !branchPolicy.ImmutableTags {
 		return false, nil
 	}
@@ -325,15 +327,15 @@ func computeImmutableTags(branchPolicy *ProtectedBranch, controls slsa_types.Con
 		return false, fmt.Errorf("policy requires immutable tags, but that control is not enabled")
 	}
 
-	if branchPolicy.Since.Before(immutableTags.Since) {
-		return false, fmt.Errorf("policy requires immutable tags since %v, but that control has only been enabled since %v", branchPolicy.Since, immutableTags.Since)
+	if branchPolicy.Since.Before(immutableTags.Since.AsTime()) {
+		return false, fmt.Errorf("policy requires immutable tags since %v, but that control has only been enabled since %v", branchPolicy.Since.UTC(), immutableTags.Since.AsTime().UTC())
 	}
 
 	return true, nil
 }
 
 // Returns a list of controls to include in the vsa's 'verifiedLevels' field.
-func evaluateControls(branchPolicy *ProtectedBranch, controls slsa_types.Controls) (slsa_types.SourceVerifiedLevels, error) {
+func evaluateControls(branchPolicy *ProtectedBranch, controls v1.Controls) (slsa_types.SourceVerifiedLevels, error) {
 	slsaSourceLevel, err := computeSlsaLevel(branchPolicy, controls)
 	if err != nil {
 		return slsa_types.SourceVerifiedLevels{}, fmt.Errorf("error computing slsa level: %w", err)
