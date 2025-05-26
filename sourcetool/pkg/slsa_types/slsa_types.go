@@ -20,34 +20,6 @@ func IsLevelHigherOrEqualTo(level1, level2 SlsaSourceLevel) bool {
 	return level1 >= level2
 }
 
-type Control struct {
-	// The name of the control
-	Name string `json:"name"`
-	// The time from which this control has been continuously enforced/observed.
-	Since time.Time `json:"since"`
-}
-
-type Controls []Control
-
-// Adds the control to the list. Ignores nil controls.
-// Does not check for duplicate controls.
-func (controls *Controls) AddControl(control *Control) {
-	if control == nil {
-		return
-	}
-	*controls = append(*controls, *control)
-}
-
-// Gets the control with the corresponding name, returns nil if not found.
-func (controls Controls) GetControl(name string) *Control {
-	for _, control := range controls {
-		if control.Name == name {
-			return &control
-		}
-	}
-	return nil
-}
-
 // These can be any string, not just SlsaLevels
 type SourceVerifiedLevels []string
 
