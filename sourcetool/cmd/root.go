@@ -4,6 +4,7 @@ Copyright © 2025 NAME HERE <EMAIL ADDRESS>
 package cmd
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/slsa-framework/slsa-source-poc/sourcetool/pkg/attest"
@@ -47,6 +48,7 @@ func getVerificationOptions() attest.VerificationOptions {
 func Execute() {
 	err := rootCmd.Execute()
 	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: %s\n", err)
 		os.Exit(1)
 	}
 }
@@ -60,4 +62,5 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&expectedIssuer, "expected_issuer", "", "The expected issuer of attestations.")
 	rootCmd.PersistentFlags().StringVar(&expectedSan, "expected_san", "", "The expect san of attestations.")
 
+	addOnboard(rootCmd)
 }

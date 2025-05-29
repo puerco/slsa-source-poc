@@ -238,5 +238,10 @@ func (ghc *GitHubConnection) GetControls(ctx context.Context, commit string) (*G
 	}
 	controlStatus.Controls.AddControl(reviewControl)
 
+	// controlStatus.Controls.AddControl(&slsa_types.Control{
+	// 	Name:  slsa_types.ProvenanceAvailable,
+	// 	Since: time.Time{},
+	// })
+
 	return &controlStatus, nil
 }
