@@ -17,14 +17,15 @@ func (ghc *GitHubConnection) GetNotesForCommit(ctx context.Context, commit strin
 	path := commit[0:2] + "/" + commit[2:]
 	contents, _, resp, err := ghc.Client().Repositories.GetContents(
 		ctx, ghc.Owner(), ghc.Repo(), path, &github.RepositoryContentGetOptions{Ref: "refs/notes/commits"})
+	if err != nil {
+		return "", fmt.Errorf("retrieving note contents from GitHub for commit %s: %w", commit, err)
+	}
 
+	// Don't freak out if it's not there.
 	if resp.StatusCode == http.StatusNotFound {
-		// Don't freak out if it's not there.
 		return "", nil
 	}
-	if err != nil {
-		return "", fmt.Errorf("cannot get note contents for commit %s: %w", commit, err)
-	}
+
 	if contents == nil {
 		// No notes stored for this commit.
 		return "", nil
