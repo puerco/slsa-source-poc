@@ -54,6 +54,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+            mkdir attestations
             tejolote attest --artifacts github://${{github.repository}}/${{ steps.tag.outputs.tag_name }} github://${{github.repository}}/"${GITHUB_RUN_ID}" --output attestations/provenance.json
             bnd statement attestations/provenance.json -o attestations/sourcetool-${{ steps.tag.outputs.tag_name }}.provenance.json
             rm attestations/provenance.json
