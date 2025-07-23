@@ -12,8 +12,9 @@ jobs:
     runs-on: ubuntu-latest
 
     permissions:
-      id-token: write
-      attestations: write
+      id-token: write # To sign attestations
+      attestations: write # To push build provenance to attestations store
+      contents: write # To create the release
       
     steps:
       - name: Setup bnd
