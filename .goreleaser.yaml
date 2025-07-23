@@ -18,7 +18,7 @@ builds:
   - id: release
     no_unique_dist_dir: true
     binary: sourcetool-{{ .Tag }}-{{ .Os }}-{{ .Arch }}
-    main: sourcetool/
+    main: ./sourcetool/
     goos:
       - darwin
       - linux
