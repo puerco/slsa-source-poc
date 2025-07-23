@@ -60,5 +60,5 @@ jobs:
             rm attestations/provenance.json
             bnd pack attestations/ > sourcetool.intoto.jsonl
             gh release upload ${{ steps.tag.outputs.tag_name }} sourcetool.intoto.jsonl
-            bnd push github ${{github.repository}} attestations/bnd-${{ steps.tag.outputs.tag_name }}.provenance.json
+            bnd push github ${{github.repository}} attestations/provenance.json
 
