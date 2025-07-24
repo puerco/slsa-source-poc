@@ -17,6 +17,7 @@ jobs:
       contents: write # To create the release
       
     steps:
+      
       - name: Setup bnd
         uses: carabiner-dev/actions/install/bnd@HEAD
 
@@ -55,7 +56,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
             mkdir attestations
-            tejolote attest --artifacts github://${{github.repository}}/${{ steps.tag.outputs.tag_name }} github://${{github.repository}}/"${GITHUB_RUN_ID}" --output attestations/provenance.json
+            go run sigs.k8s.io/tejolote/cmd/tejolote@HEAD  attest --artifacts github://${{github.repository}}/${{ steps.tag.outputs.tag_name }} github://${{github.repository}}/"${GITHUB_RUN_ID}" --output attestations/provenance.json
+            # tejolote attest --artifacts github://${{github.repository}}/${{ steps.tag.outputs.tag_name }} github://${{github.repository}}/"${GITHUB_RUN_ID}" --output attestations/provenance.json
             # Remove this once tejolote attests fine
             sed -i 's|https://github.com/Attestations/GitHubActionsWorkflow@v1|https://actions.github.io/buildtypes/workflow/v1|' attestations/provenance.json
             bnd statement attestations/provenance.json -o attestations/sourcetool-${{ steps.tag.outputs.tag_name }}.provenance.json
