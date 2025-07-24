@@ -57,7 +57,7 @@ jobs:
             mkdir attestations
             tejolote attest --artifacts github://${{github.repository}}/${{ steps.tag.outputs.tag_name }} github://${{github.repository}}/"${GITHUB_RUN_ID}" --output attestations/provenance.json
             # Remove this once tejolote attests fine
-            sed -i 's|https://github.com/Attestations/GitHubHostedActions@v1|https://actions.github.io/buildtypes/workflow/v1|' attestations/provenance.json
+            sed -i 's|https://github.com/Attestations/GitHubActionsWorkflow@v1|https://actions.github.io/buildtypes/workflow/v1|' attestations/provenance.json
             bnd statement attestations/provenance.json -o attestations/sourcetool-${{ steps.tag.outputs.tag_name }}.provenance.json
             rm attestations/provenance.json
             bnd pack attestations/ > sourcetool.intoto.jsonl
