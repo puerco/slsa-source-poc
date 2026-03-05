@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/slsa-framework/source-tool/pkg/attest"
 	"github.com/slsa-framework/source-tool/pkg/auth"
@@ -73,6 +74,23 @@ func (b *Backend) GetBranchControls(ctx context.Context, r *models.Repository, b
 	return b.GetBranchControlsAtCommit(ctx, r, branch, &models.Commit{SHA: commit})
 }
 
+// getdefaultControls regturns a list of the SLSA Source controls that github
+// hosted repos get.
+func (b *Backend) getDefaultControls() map[slsa.ControlName]slsa.ControlStatus {
+	origin := time.Unix(1207785600, 0) // Since GitHub started
+	msg := "Built into git or GitHub"
+
+	return map[slsa.ControlName]slsa.ControlStatus{
+		slsa.SLSA_SOURCE_ORG_SCS:            {Name: slsa.SLSA_SOURCE_ORG_SCS, State: slsa.StateActive, Since: &origin, Message: msg},
+		slsa.SLSA_SOURCE_ORG_ACCESS_CONTROL: {Name: slsa.SLSA_SOURCE_ORG_ACCESS_CONTROL, State: slsa.StateActive, Since: &origin, Message: msg},
+		slsa.SLSA_SOURCE_SCS_REPO_ID:        {Name: slsa.SLSA_SOURCE_SCS_REPO_ID, State: slsa.StateActive, Since: &origin, Message: msg},
+		slsa.SLSA_SOURCE_SCS_REVISION_ID:    {Name: slsa.SLSA_SOURCE_SCS_REVISION_ID, State: slsa.StateActive, Since: &origin, Message: msg},
+		slsa.SLSA_SOURCE_SCS_DIFF_DISPLAY:   {Name: slsa.SLSA_SOURCE_SCS_DIFF_DISPLAY, State: slsa.StateActive, Since: &origin, Message: msg},
+		slsa.SLSA_SOURCE_SCS_IDENTITY:       {Name: slsa.SLSA_SOURCE_SCS_IDENTITY, State: slsa.StateActive, Since: &origin, Message: msg},
+		// SLSA_SOURCE_ORG_SAFE_EXPUNGE // only on protected branches
+	}
+}
+
 // GetBranchControlsAtCommit
 func (b *Backend) GetBranchControlsAtCommit(ctx context.Context, r *models.Repository, branch *models.Branch, commit *models.Commit) (*slsa.ControlSetStatus, error) {
 	if commit == nil {
@@ -108,6 +126,7 @@ func (b *Backend) GetBranchControlsAtCommit(ctx context.Context, r *models.Repos
 		log.Printf("No provenance attestation found on %s", commit.SHA)
 	}
 
+	def := b.getDefaultControls()
 	status := slsa.NewControlSetStatus()
 	for i, ctrl := range status.Controls {
 		if c := activeControls.GetControl(ctrl.Name); c != nil {
@@ -115,6 +134,11 @@ func (b *Backend) GetBranchControlsAtCommit(ctx context.Context, r *models.Repos
 			status.Controls[i].Since = &t
 			status.Controls[i].State = slsa.StateActive
 			status.Controls[i].Message = b.controlImplementationMessage(slsa.ControlName(c.GetName()))
+			continue
+		}
+
+		if s, ok := def[ctrl.Name]; ok {
+			status.Controls[i] = s
 		}
 	}
 

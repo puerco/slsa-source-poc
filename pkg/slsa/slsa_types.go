@@ -13,8 +13,6 @@ import (
 )
 
 type (
-	ControlName     string
-	ControlState    string
 	SlsaSourceLevel ControlName
 )
 
@@ -23,29 +21,15 @@ func (c ControlName) String() string {
 }
 
 const (
-	SlsaSourceLevel1         SlsaSourceLevel = "SLSA_SOURCE_LEVEL_1"
-	SlsaSourceLevel2         SlsaSourceLevel = "SLSA_SOURCE_LEVEL_2"
-	SlsaSourceLevel3         SlsaSourceLevel = "SLSA_SOURCE_LEVEL_3"
-	SlsaSourceLevel4         SlsaSourceLevel = "SLSA_SOURCE_LEVEL_4"
-	ContinuityEnforced       ControlName     = "CONTINUITY_ENFORCED"
-	ProvenanceAvailable      ControlName     = "PROVENANCE_AVAILABLE"
-	ReviewEnforced           ControlName     = "REVIEW_ENFORCED"
-	TagHygiene               ControlName     = "TAG_HYGIENE"
-	PolicyAvailable          ControlName     = "POLICY_AVAILABLE"
-	SourceBranchesAnnotation                 = "source_branches"
-	SourceRefsAnnotation                     = "source_refs"
-	AllowedOrgPropPrefix                     = "ORG_SOURCE_"
+	SlsaSourceLevel1 SlsaSourceLevel = "SLSA_SOURCE_LEVEL_1"
+	SlsaSourceLevel2 SlsaSourceLevel = "SLSA_SOURCE_LEVEL_2"
+	SlsaSourceLevel3 SlsaSourceLevel = "SLSA_SOURCE_LEVEL_3"
+	SlsaSourceLevel4 SlsaSourceLevel = "SLSA_SOURCE_LEVEL_4"
 
-	// Control lifecycle states
-	StateNotEnabled ControlState = "not_enabled"
-	StateInProgress ControlState = "in_progress"
-	StateActive     ControlState = "active"
+	SourceBranchesAnnotation = "source_branches"
+	SourceRefsAnnotation     = "source_refs"
+	AllowedOrgPropPrefix     = "ORG_SOURCE_"
 )
-
-// AllLevelControls lists all the SLSA controls managed by sourcetool
-var AllLevelControls = []ControlName{
-	ContinuityEnforced, ProvenanceAvailable, ReviewEnforced, TagHygiene,
-}
 
 func IsSlsaSourceLevel(control ControlName) bool {
 	return slices.Contains(
@@ -54,8 +38,7 @@ func IsSlsaSourceLevel(control ControlName) bool {
 			ControlName(SlsaSourceLevel2),
 			ControlName(SlsaSourceLevel3),
 			ControlName(SlsaSourceLevel4),
-		},
-		control)
+		}, control)
 }
 
 func IsLevelHigherOrEqualTo(level1, level2 SlsaSourceLevel) bool {
@@ -112,18 +95,18 @@ func (controls *Controls) Names() []ControlName {
 type SourceVerifiedLevels []ControlName
 
 // Returns the list of control names that must be set for the given slsa level.
-func GetRequiredControlsForLevel(level SlsaSourceLevel) []ControlName {
+func GetRequiredControlsForLevel(level SlsaSourceLevel) ControlSet {
 	switch level {
 	case SlsaSourceLevel1:
-		return []ControlName{}
+		return ControlSet{}
 	case SlsaSourceLevel2:
-		return []ControlName{ContinuityEnforced, TagHygiene}
+		return ControlSet{ContinuityEnforced, TagHygiene}
 	case SlsaSourceLevel3:
-		return []ControlName{ContinuityEnforced, TagHygiene, ProvenanceAvailable}
+		return ControlSet{ContinuityEnforced, TagHygiene, ProvenanceAvailable}
 	case SlsaSourceLevel4:
-		return []ControlName{ContinuityEnforced, TagHygiene, ProvenanceAvailable, ReviewEnforced}
+		return ControlSet{ContinuityEnforced, TagHygiene, ProvenanceAvailable, ReviewEnforced}
 	default:
-		return []ControlName{}
+		return ControlSet{}
 	}
 }
 

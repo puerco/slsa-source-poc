@@ -93,6 +93,11 @@ func (cs *GhControlStatus) AddControl(newControls ...*provenance.Control) {
 	}
 }
 
+// ruleMeetsRequiresReview returns true if the branch:
+// . requires at least 1 reviewer
+// . dismisses the reviews on a new push
+// . requires a review by a codeowner
+// . requires approval after the last push
 func (ghc *GitHubConnection) ruleMeetsRequiresReview(rule *github.PullRequestBranchRule) bool {
 	return rule.Parameters.RequiredApprovingReviewCount > 0 &&
 		rule.Parameters.DismissStaleReviewsOnPush &&
@@ -100,13 +105,16 @@ func (ghc *GitHubConnection) ruleMeetsRequiresReview(rule *github.PullRequestBra
 		rule.Parameters.RequireLastPushApproval
 }
 
-// Computes the continuity control returning nil if it's not enabled.
-func (ghc *GitHubConnection) computeContinuityControl(ctx context.Context, rules *github.BranchRules) (*provenance.Control, error) {
+// Computes the continuity controls for the organization and repository.
+func (ghc *GitHubConnection) computeContinuityControls(ctx context.Context, rules *github.BranchRules) (
+	[]*provenance.Control, error,
+) {
+	// Look for the oldest branch deletion protection
 	oldestDeletion, err := ghc.getOldestActiveRule(ctx, rules.Deletion)
 	if err != nil {
 		return nil, fmt.Errorf("looking for oldest branch delete protection: %w", err)
 	}
-
+	// Look for the oldest force push protection
 	oldestNoFf, err := ghc.getOldestActiveRule(ctx, rules.NonFastForward)
 	if err != nil {
 		return nil, fmt.Errorf("looking for oldest push protection rule: %w", err)
@@ -122,7 +130,9 @@ func (ghc *GitHubConnection) computeContinuityControl(ctx context.Context, rules
 		newestRule = oldestNoFf
 	}
 
-	return &provenance.Control{Name: string(slsa.ContinuityEnforced), Since: timestamppb.New(newestRule.UpdatedAt.Time)}, nil
+	return []*provenance.Control{
+		{Name: string(slsa.ContinuityEnforced), Since: timestamppb.New(newestRule.UpdatedAt.Time)},
+	}, nil
 }
 
 func enforcesTagHygiene(ruleset *github.RepositoryRuleset) bool {
